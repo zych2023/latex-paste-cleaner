@@ -382,9 +382,42 @@ function surgeryHtml(html) {
 // ============================================================================
 
 const DEFAULT_SETTINGS = {
+  language: 'zh',           // 'zh' = 中文；'en' = English
   enableIntercept: true,   // 启用粘贴拦截
   pasteMode: 'html',       // 'html' = HTML 手术保格式；'plain' = 纯文本清理
   fixEntities: true,       // 普通区修 HTML 实体
+};
+
+// ---------- 界面文案（i18n） ----------
+const I18N = {
+  zh: {
+    settingsTitle: 'Latex Paste Cleaner 设置',
+    language: '语言',
+    languageDesc: '选择界面语言（设置项与命令名会随之切换）',
+    enableIntercept: '启用粘贴拦截',
+    enableInterceptDesc: '粘贴内容含 LaTeX 公式特征时自动清理。关闭后仅保留"清理当前笔记"命令。',
+    pasteMode: '粘贴模式',
+    pasteModeDesc: 'HTML 手术：保留正文格式（粗体/列表等），公式替换为干净 LaTeX（推荐）。纯文本：全部以纯文本插入。',
+    pasteModeHtml: 'HTML 手术（保格式）',
+    pasteModePlain: '纯文本清理',
+    fixEntities: '普通文本区修复 HTML 实体',
+    fixEntitiesDesc: '公式以外的部分把 &lt; 等 HTML 实体还原为 <。公式区内总是修复。',
+    cmdCleanNote: '清理当前笔记的 LaTeX 公式',
+  },
+  en: {
+    settingsTitle: 'Latex Paste Cleaner Settings',
+    language: 'Language',
+    languageDesc: 'Choose the interface language (settings and command name switch accordingly)',
+    enableIntercept: 'Enable paste interception',
+    enableInterceptDesc: 'Automatically clean pasted content when it contains LaTeX math signals. Disable to keep only the manual command.',
+    pasteMode: 'Paste mode',
+    pasteModeDesc: 'HTML surgery: preserve text formatting (bold/lists), replace formulas with clean LaTeX (recommended). Plain text: insert everything as plain text.',
+    pasteModeHtml: 'HTML surgery (preserve formatting)',
+    pasteModePlain: 'Plain text cleanup',
+    fixEntities: 'Fix HTML entities in text regions',
+    fixEntitiesDesc: 'Restore &lt; → < etc. outside math regions. Math regions are always fixed.',
+    cmdCleanNote: "Clean up current note's LaTeX",
+  },
 };
 
 // ---------- 设置标签页 ----------
@@ -396,23 +429,42 @@ class PasteCleanerSettingTab extends PluginSettingTab {
 
   display() {
     const { containerEl } = this;
+    const t = I18N[this.plugin.settings.language] || I18N.zh;
     containerEl.empty();
-    containerEl.createEl('h2', { text: 'Latex Paste Cleaner 设置' });
+    containerEl.createEl('h2', { text: t.settingsTitle });
+
+    // 语言选择（第一个选项）
+    new Setting(containerEl)
+      .setName(t.language)
+      .setDesc(t.languageDesc)
+      .addDropdown((d) => d
+        .addOption('zh', '中文')
+        .addOption('en', 'English')
+        .setValue(this.plugin.settings.language)
+        .onChange(async (v) => {
+          this.plugin.settings.language = v;
+          await this.plugin.saveData(this.plugin.settings);
+          // 命令名随语言切换：重注册命令
+          const cmdId = 'latex-paste-cleaner:clean-current-note';
+          try { this.app.commands.removeCommand(cmdId); } catch (e) { /* 未注册时忽略 */ }
+          this.plugin.registerCommand();
+          this.display();
+        }));
 
     new Setting(containerEl)
-      .setName('启用粘贴拦截')
-      .setDesc('粘贴内容含 LaTeX 公式特征时自动清理。关闭后仅保留"清理当前笔记"命令。')
-      .addToggle((t) => t.setValue(this.plugin.settings.enableIntercept).onChange(async (v) => {
+      .setName(t.enableIntercept)
+      .setDesc(t.enableInterceptDesc)
+      .addToggle((tog) => tog.setValue(this.plugin.settings.enableIntercept).onChange(async (v) => {
         this.plugin.settings.enableIntercept = v;
         await this.plugin.saveData(this.plugin.settings);
       }));
 
     new Setting(containerEl)
-      .setName('粘贴模式')
-      .setDesc('HTML 手术：保留正文格式（粗体/列表等），公式替换为干净 LaTeX（推荐）。纯文本：全部以纯文本插入。')
+      .setName(t.pasteMode)
+      .setDesc(t.pasteModeDesc)
       .addDropdown((d) => d
-        .addOption('html', 'HTML 手术（保格式）')
-        .addOption('plain', '纯文本清理')
+        .addOption('html', t.pasteModeHtml)
+        .addOption('plain', t.pasteModePlain)
         .setValue(this.plugin.settings.pasteMode)
         .onChange(async (v) => {
           this.plugin.settings.pasteMode = v;
@@ -420,9 +472,9 @@ class PasteCleanerSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('普通文本区修复 HTML 实体')
-      .setDesc('公式以外的部分把 &lt; 等 HTML 实体还原为 <。公式区内总是修复。')
-      .addToggle((t) => t.setValue(this.plugin.settings.fixEntities).onChange(async (v) => {
+      .setName(t.fixEntities)
+      .setDesc(t.fixEntitiesDesc)
+      .addToggle((tog) => tog.setValue(this.plugin.settings.fixEntities).onChange(async (v) => {
         this.plugin.settings.fixEntities = v;
         await this.plugin.saveData(this.plugin.settings);
       }));
@@ -430,13 +482,13 @@ class PasteCleanerSettingTab extends PluginSettingTab {
 }
 
 class LatexPasteCleanerPlugin extends Plugin {
-  async onload() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-
-    // 兜底命令：清理当前笔记（选中区域优先，否则整篇）
+  // 兜底命令：清理当前笔记（选中区域优先，否则整篇）。命令名随语言切换，
+  // 语言变更时由设置页 removeCommand 后重新调用本方法
+  registerCommand() {
+    const t = I18N[this.settings.language] || I18N.zh;
     this.addCommand({
       id: 'clean-current-note',
-      name: '清理当前笔记的 LaTeX 公式',
+      name: t.cmdCleanNote,
       editorCallback: (editor) => {
         const sel = editor.getSelection();
         if (sel) {
@@ -446,6 +498,12 @@ class LatexPasteCleanerPlugin extends Plugin {
         }
       },
     });
+  }
+
+  async onload() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    this.registerCommand();
 
     // 粘贴拦截：有公式特征才干预（HTML 手术保格式；纯文本兜底）
     this.registerEvent(this.app.workspace.on('editor-paste', (evt, editor) => {

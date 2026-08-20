@@ -1,9 +1,9 @@
 {
   "id": "latex-paste-cleaner",
   "name": "Latex Paste Cleaner",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.4.0",
   "description": "Automatically cleans up LaTeX formulas pasted from web pages or AI chats, preserving text formatting.",
-  "author": "zuoye",
+  "author": "zych2023",
   "isDesktopOnly": false
 }

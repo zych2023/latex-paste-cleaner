@@ -2,56 +2,66 @@
 
 [中文说明](README.zh-CN.md)
 
-Automatically cleans up LaTeX formulas when pasting from web pages or AI chats into Obsidian. Fixes broken formulas (`\\(...\\)` → `$...$`, `\\[...\\]` → `$$...$$`, double escapes, HTML entities, Unicode math symbols, nested corrupted escapes) while preserving the formatting of normal text.
+An Obsidian plugin that automatically cleans up LaTeX formulas when you paste content from web pages or AI chats. It fixes broken formulas (`\\(...\\)` → `$...$`, `\\[...\\]` → `$$...$$`, double escapes, HTML entities, Unicode math symbols, nested corrupted escapes, split command names) while preserving the formatting of your normal text.
 
-## Why
-
-Copying math content from web pages (MathJax/KaTeX rendered) or AI chats often produces badly corrupted LaTeX:
-
-- `\\(x^2\\)` / `\\[\\int dx\\]` (double-escaped delimiters)
-- `$\\boldsymbol{\\(\\boldsymbol{\\(y=x\\)}\\)}$` (nested corrupted escapes from HTML rendering interleaving)
-- `\\bol\\(\\mathrm{d}s\\)ymbol{...}` (command names split by interleaved formulas)
-- `&times;`, `&le;` (HTML entities)
-- `≥`, `×`, `α` (Unicode math symbols)
-- Bare `[ ... ]` display math, unpaired/misordered delimiters
-
-This plugin detects math regions in pasted text, cleans them thoroughly, and leaves everything else untouched.
+> **Status**: submitted to the Obsidian community plugin marketplace (pending review). Until it's listed, install manually with the steps below.
 
 ## Features
 
-- **Smart paste interception**: only triggers when the content contains LaTeX signals; plain text/code passes through completely untouched
+- **Smart paste interception**: only triggers when the content contains LaTeX math signals; plain text and code pass through completely untouched
 - **HTML surgery mode (default)**: replaces only formula nodes with clean LaTeX, preserving bold/lists/etc. of the surrounding text
 - **Plain text mode**: inserts everything as plain text (most reliable, no formatting)
-- **"Clean up current note" command**: fixes existing notes (selection first, otherwise the whole note)
+- **"Clean up current note" command**: fixes existing broken notes (selection first, otherwise the whole note)
 - Unicode math symbols (≥ × α etc.) are converted **only inside math regions** — never in normal text
 - `\\[0,2π]` style escaped brackets in headings (not math) are preserved
+- **Bilingual UI**: English / 中文, switch in the first settings option
 
-## Install
+## Install (manual, until marketplace approval)
 
-1. Copy the `latex-paste-cleaner/` folder into your vault's `.obsidian/plugins/`
-2. Obsidian → Settings → Community plugins → enable "Latex Paste Cleaner"
-3. No restart needed (restart Obsidian if the list doesn't refresh)
+1. Go to the [Releases page](https://github.com/zych2023/latex-paste-cleaner/releases) and download the latest `latex-paste-cleaner-*.zip` (or the repo as ZIP)
+2. Extract the folder `latex-paste-cleaner/`
+3. Put the whole folder into your vault's plugins directory:
+   - `<your-vault>/.obsidian/plugins/latex-paste-cleaner/`
+   - (The `.obsidian` folder is hidden — enable "show hidden files" if you can't see it)
+4. Restart Obsidian (or reload: Settings → Community plugins → click "Reload plugins")
+5. Obsidian → Settings → **Community plugins** → enable **Latex Paste Cleaner**
+
+> If the plugin doesn't appear in the list, restart Obsidian completely.
 
 ## Usage
 
-Just paste. When the clipboard contains LaTeX math signals, the plugin cleans the formulas automatically.
+**Just paste.** When the clipboard contains LaTeX math signals, the plugin cleans the formulas automatically — that's it.
 
-To fix existing broken notes: open the note → Command palette (Ctrl+P) → "清理当前笔记的 LaTeX 公式" (Clean up current note's LaTeX).
+### Fix existing broken notes
+
+1. Open the note with corrupted formulas
+2. Open the command palette (`Ctrl+P` / `Cmd+P`)
+3. Run **"Clean up current note's LaTeX"** (中文：清理当前笔记的 LaTeX 公式)
+   - With a selection: only the selection is cleaned
+   - Without a selection: the whole note is cleaned
 
 ### Settings
 
+Open Settings → **Community plugins** → **Latex Paste Cleaner**:
+
 | Setting | Description |
 |---|---|
-| Enable paste interception | Automatically clean when pasted content contains math signals. Disable to keep only the manual command. |
-| Paste mode | HTML surgery (preserve formatting, default) / Plain text (most reliable) |
+| **Language** | 中文 / English — switches all settings text and the command name |
+| Enable paste interception | Automatically clean pasted content when it contains math signals. Disable to keep only the manual command. |
+| Paste mode | **HTML surgery** (preserve formatting, default) / **Plain text** (most reliable) |
 | Fix HTML entities in text regions | Restore `&lt;` → `<` etc. outside math regions. Math regions are always fixed. |
 
-> **Note on HTML paste**: Obsidian's built-in "Convert pasted HTML to Markdown" escapes `$` signs in pasted HTML, which breaks inline math rendering even with this plugin. If formulas don't render after an HTML paste, either switch to "Plain text" paste mode in the plugin settings, or disable "Convert pasted HTML to Markdown" in Obsidian → Settings → Editor.
+### Known limitation (HTML paste & `$` escaping)
+
+Obsidian's built-in "Convert pasted HTML to Markdown" escapes `$` signs in pasted HTML, which breaks inline math rendering even with this plugin. If formulas don't render after an HTML paste:
+
+- Switch "Paste mode" to **Plain text** in the plugin settings, **or**
+- Disable "Convert pasted HTML to Markdown" in Obsidian → Settings → **Editor**
 
 ## Development
 
 ```bash
-cd .obsidian/plugins/latex-paste-cleaner
+cd <plugin-dir>
 node tests/test-cleaner.cjs   # 67 tests, no dependencies
 ```
 
@@ -59,7 +69,7 @@ The plugin is a single `main.js` file (Obsidian's plugin loader does not support
 
 ## Notes
 
-- Only triggers when content contains LaTeX command signals (`\frac`, `\\(`, `$$` etc.); plain text pasting is completely unaffected
+- Only triggers when the content contains LaTeX command signals (`\frac`, `\\(`, `$$` etc.); plain text pasting is completely unaffected
 - The core logic is defensive by design: unknown or ambiguous content is left untouched rather than risk damaging it
 
 ## License
