@@ -27,10 +27,12 @@ jobs:
           cp main.js manifest.json "${{ github.workspace }}/release/"
           ls -la "${{ github.workspace }}/release/"
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+      # Artifact attestation (actions/attest, per Obsidian official template) —
+      # proves the release assets were built from this repository.
+      - name: Attest artifacts
+        uses: actions/attest@v4
         with:
-          subject-path: "${{ github.workspace }}/release/*"
+          subject-path: "${{ github.workspace }}/release/main.js"
 
       - name: Create release
         env:
