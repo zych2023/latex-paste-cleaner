@@ -1,0 +1,43 @@
+# Release workflow: push a tag like "0.1.2" to build, attest and publish a release.
+# Tag must NOT have a "v" prefix (Obsidian requirement: tag == manifest version).
+# Assets get build provenance attestations so users can verify they came from this repo.
+name: Release Obsidian plugin
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # This plugin is plain JavaScript (no build step), so "build" is just staging the files.
+      - name: Stage release assets
+        id: stage
+        run: |
+          mkdir -p "${{ github.workspace }}/release"
+          cp main.js manifest.json "${{ github.workspace }}/release/"
+          ls -la "${{ github.workspace }}/release/"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "${{ github.workspace }}/release/*"
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "${{ github.workspace }}/release/main.js" \
+            "${{ github.workspace }}/release/manifest.json" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Automated release for version $GITHUB_REF_NAME"
