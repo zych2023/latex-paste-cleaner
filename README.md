@@ -18,13 +18,25 @@ An Obsidian plugin that automatically cleans up LaTeX formulas when you paste co
 
 ## Install (manual, until marketplace approval)
 
-1. Go to the [Releases page](https://github.com/zych2023/latex-paste-cleaner/releases) and download the latest `latex-paste-cleaner-*.zip` (or the repo as ZIP)
-2. Extract the folder `latex-paste-cleaner/`
-3. Put the whole folder into your vault's plugins directory:
-   - `<your-vault>/.obsidian/plugins/latex-paste-cleaner/`
+This plugin needs only two files: **`main.js`** and **`manifest.json`** (all code lives in `main.js`, no build step).
+
+### Option A — from release assets (recommended)
+
+1. Go to the [Releases page](https://github.com/zych2023/latex-paste-cleaner/releases) (e.g. release `0.1.1`)
+2. Under **Assets**, download the two files: `main.js` and `manifest.json`
+3. Create a folder inside your vault: `<your-vault>/.obsidian/plugins/latex-paste-cleaner/`
    - (The `.obsidian` folder is hidden — enable "show hidden files" if you can't see it)
-4. Restart Obsidian (or reload: Settings → Community plugins → click "Reload plugins")
-5. Obsidian → Settings → **Community plugins** → enable **Latex Paste Cleaner**
+4. Put **both** downloaded files into that folder
+5. Restart Obsidian (or reload: Settings → Community plugins → click "Reload plugins")
+6. Obsidian → Settings → **Community plugins** → enable **Latex Paste Cleaner**
+
+### Option B — from the repository ZIP
+
+1. On the repo page, click **Code → Download ZIP** (or download a release's *Source code* zip)
+2. Extract it — note the extracted folder is named like `latex-paste-cleaner-main` (or `latex-paste-cleaner-0.1.1`)
+3. **Rename the extracted folder to exactly `latex-paste-cleaner`** (the folder name must match the plugin id, otherwise Obsidian won't load it)
+4. Move the folder into `<your-vault>/.obsidian/plugins/`
+5. Restart Obsidian → Settings → **Community plugins** → enable **Latex Paste Cleaner**
 
 > If the plugin doesn't appear in the list, restart Obsidian completely.
 

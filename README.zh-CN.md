@@ -18,13 +18,25 @@
 
 ## 安装（市场审核通过前：手动安装）
 
-1. 打开 [Releases 页面](https://github.com/zych2023/latex-paste-cleaner/releases)，下载最新版的 `latex-paste-cleaner-*.zip`（或直接下载仓库 ZIP）
-2. 解压出 `latex-paste-cleaner/` 文件夹
-3. 把整个文件夹放入你的 vault 插件目录：
-   - `<你的vault>/.obsidian/plugins/latex-paste-cleaner/`
+本插件只需要两个文件：**`main.js`** 和 **`manifest.json`**（所有代码都在 `main.js` 里，无需构建）。
+
+### 方式 A——从 Release 资产下载（推荐）
+
+1. 打开 [Releases 页面](https://github.com/zych2023/latex-paste-cleaner/releases)（如 0.1.1）
+2. 在 **Assets（资产）** 下下载两个文件：`main.js` 和 `manifest.json`
+3. 在你的 vault 里新建文件夹：`<你的vault>/.obsidian/plugins/latex-paste-cleaner/`
    - （`.obsidian` 是隐藏文件夹——看不到就开启"显示隐藏文件"）
-4. 重启 Obsidian（或 设置 → 第三方插件 → 点"重新加载插件"）
-5. Obsidian → 设置 → **第三方插件** → 启用 **Latex Paste Cleaner**
+4. 把**这两个文件**都放进该文件夹
+5. 重启 Obsidian（或 设置 → 第三方插件 → 点"重新加载插件"）
+6. Obsidian → 设置 → **第三方插件** → 启用 **Latex Paste Cleaner**
+
+### 方式 B——下载仓库 ZIP
+
+1. 在仓库页面点 **Code → Download ZIP**（或下载 Release 里的 *Source code* 压缩包）
+2. 解压——注意解压出来的文件夹名是 `latex-paste-cleaner-main`（或 `latex-paste-cleaner-0.1.1`）
+3. **把文件夹重命名为 `latex-paste-cleaner`**（文件夹名必须与插件 id 一致，否则 Obsidian 不会加载）
+4. 把文件夹放进 `<你的vault>/.obsidian/plugins/`
+5. 重启 Obsidian → 设置 → **第三方插件** → 启用 **Latex Paste Cleaner**
 
 > 如果列表里没出现，完全重启 Obsidian。
 
