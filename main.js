@@ -124,7 +124,7 @@ function tokenize(text) {
 function hasMathSignals(text) {
   // 触发特征：\( \[ $$ \begin{ 及 "\后接 2+ 字母" 的命令词。
   // 命令词仅在紧跟 ASCII 字母/反斜杠/空白时排除（如路径 C:\Users\foo 路径 不触发）；
-  // 行尾（如 C:\Users\foo 直达串尾）与全角标点（如 D:\Obb\zuoyecihua，见上文）后仍会触发——
+  // 行尾（如 C:\Users\foo 直达串尾）与全角标点（如 D:\docs\file，见上文）后仍会触发——
   // 无害：触发后 tokenize 找不到公式区时只修 HTML 实体。
   return /\\\(|\\\[|\$\$|\\begin\{|\\[A-Za-z]{2,}(?![A-Za-z\\\s])/.test(text);
 }
