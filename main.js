@@ -16,14 +16,15 @@ const { Plugin, PluginSettingTab, Setting } = require('obsidian');
 //      tokenize 分类做：\\( 圆括号双转义无合法文本用途 → 无条件 math；\\[ 方括号双转义
 //      （markdown 转义合法）→ hasCmd 门控。注意不能用 tempered-dot 守卫拒绝整体消费，
 //      否则对称 2bs 包裹 + 2bs 命令（MathJax 2 网页格式）会落回单转义分支产生 \$ 损坏）
-//   4. \[...\]、\\(...\\)（弱信号：需内容含命令特征）
+//   4. \[...\]（弱信号：需内容含命令特征）
 //   5. $...$（不跨行；$$ 分支已先行消费跨行块）
 //   6. 错配/方向错误（半对分隔符）：$...\)、\(...$、\[...$$、$$...\]、\]...\[、\]...\)
 //      （注意：\(...$ 与 \[...$$ 不以 $/\] 开头，落到 else 分支走 hasCmd 门控——
 //      如 \(x$ 无命令特征时保守按 text，行为保留，非一律 math）
 //   7. 裸 [ ... ] 独立成行（m 标志；需内容含命令特征）
-// \begin{env}...\end{env} 不在此正则：主循环用 matchEnvEnd 手动深度配对（支持嵌套），见下
-const BOUNDARY_RE = /```[\s\S]*?```|~~~[\s\S]*?~~~|\$\$[\s\S]*?\$\$|\\\\\[[\s\S]*?\\\\\]|\\\\\([\s\S]*?\\\\\)|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]*?\$|\$[^$\n]*?\\\)|\\\([^$\n]*?\$|\\\[[^$\n]*?\$\$|\$\$[\s\S]*?\\\]|\\\][\s\S]*?\\\[|\\\][^\n]*?\\\)|^\[([\s\S]*?)\][ \t]*$/gm;
+// \begin{env}...\end{env} 与 \(...\) 不在此正则：主循环分别用 matchEnvEnd / matchParenEnd
+// 手动深度配对（支持嵌套，如 \(S_{\(S_{大}\)}=...\) 不会被内层 \) 截断）
+const BOUNDARY_RE = /```[\s\S]*?```|~~~[\s\S]*?~~~|\$\$[\s\S]*?\$\$|\\\\\[[\s\S]*?\\\\\]|\\\\\([\s\S]*?\\\\\)|\\\[[\s\S]*?\\\]|\$[^$\n]*?\$|\$[^$\n]*?\\\)|\\\([^$\n]*?\$|\\\[[^$\n]*?\$\$|\$\$[\s\S]*?\\\]|\\\][\s\S]*?\\\[|\\\][^\n]*?\\\)|^\[([\s\S]*?)\][ \t]*$/gm;
 
 // 弱信号边界的内容验证：含 "\后跟字母"（LaTeX 命令特征）
 function hasCmd(s) {
@@ -43,20 +44,38 @@ function matchEnvEnd(text, start) {
   return -1;
 }
 
+// 配对 \(...\) 到配平的 \）；返回结束位置（不含），未闭合返回 -1。
+// 深度计数支持嵌套：\(S_{\(S_{大}\)}=...\) 整体配对，不会被内层 \) 截断
+function matchParenEnd(text, start) {
+  const PAREN_RE = /\\\(|\\\)/g;
+  PAREN_RE.lastIndex = start;
+  let depth = 0;
+  let m;
+  while ((m = PAREN_RE.exec(text)) !== null) {
+    depth += m[0] === '\\(' ? 1 : -1;
+    if (depth === 0) return m.index + m[0].length;
+  }
+  return -1;
+}
+
 function tokenize(text) {
   const tokens = [];
   const re = new RegExp(BOUNDARY_RE.source, BOUNDARY_RE.flags);
   const BEGIN_RE = /\\begin\{[^{}]*\}/g;
+  const PAREN_RE = /\\\(/g;
   let last = 0;
   while (last < text.length) {
     re.lastIndex = last;
     const a = re.exec(text);
     BEGIN_RE.lastIndex = last;
     const b = BEGIN_RE.exec(text);
+    PAREN_RE.lastIndex = last;
+    const p = PAREN_RE.exec(text);
     const ai = a === null ? Infinity : a.index;
     const bi = b === null ? Infinity : b.index;
-    if (ai === Infinity && bi === Infinity) break;
-    if (ai <= bi) {
+    const pi = p === null ? Infinity : p.index;
+    if (ai === Infinity && bi === Infinity && pi === Infinity) break;
+    if (ai < pi && ai <= bi) {
       if (ai > last) tokens.push({ type: 'text', content: text.slice(last, ai) });
       const s = a[0];
       if (s.startsWith('```') || s.startsWith('~~~')) {
@@ -93,12 +112,12 @@ function tokenize(text) {
         tokens.push(hasCmd(s) ? { type: 'math', content: s } : { type: 'text', content: s });
       }
       last = ai + s.length;
-    } else {
-      // \begin 起点：深度配对（嵌套安全）
+    } else if (bi < pi && bi < ai) {
+      // \begin 起点严格在前：深度配对（嵌套安全）
       const end = matchEnvEnd(text, bi);
       if (end === -1) {
         // 未闭合：原样保留为 text（保守），跳过该起点（推进到下一边界，防死循环）
-        const upto = ai === Infinity ? text.length : ai;
+        const upto = Math.min(ai, pi);
         tokens.push({ type: 'text', content: text.slice(last, upto) });
         last = upto;
       } else {
@@ -106,6 +125,39 @@ function tokenize(text) {
         const body = text.slice(bi, end);
         tokens.push({ type: 'math', content: /^\$\s*\\begin/.test(body) ? body : '$$\n' + body.trim() + '\n$$' });
         last = end;
+      }
+    } else {
+      // \( 起点最前或并列（pi <= ai && pi <= bi）：深度配对优先（嵌套安全，
+      // 如 \(S_{\(S_{大}\)}=...\) 整体配对，不会被 BOUNDARY 错配分支 \(...$ 截断）
+      const end = matchParenEnd(text, pi);
+      if (end !== -1) {
+        if (pi > last) tokens.push({ type: 'text', content: text.slice(last, pi) });
+        const body = text.slice(pi, end);
+        // 弱信号门控：内容含 LaTeX 命令特征才判定为公式（保护 \( 转义括号等文本场景）
+        tokens.push(hasCmd(body) ? { type: 'math', content: body } : { type: 'text', content: body });
+        last = end;
+      } else if (ai === pi) {
+        // \( 未配对但 BOUNDARY 也从这里开始（如 \(x$ 错配）→ 按 BOUNDARY 分支处理
+        if (ai > last) tokens.push({ type: 'text', content: text.slice(last, ai) });
+        const s = a[0];
+        if (s.startsWith('$')) {
+          const inner = s.slice(1, -1);
+          if (!/\\/.test(inner) && /[一-鿿]/.test(inner)) {
+            tokens.push({ type: 'text', content: s });
+          } else {
+            tokens.push({ type: 'math', content: s });
+          }
+        } else if (s.startsWith('\\]')) {
+          tokens.push({ type: 'math', content: s });
+        } else {
+          tokens.push(hasCmd(s) ? { type: 'math', content: s } : { type: 'text', content: s });
+        }
+        last = ai + s.length;
+      } else {
+        // \( 未配对（孤立转义括号）：原样保留为 text（保守），跳过该起点
+        const upto = Math.min(ai, bi);
+        tokens.push({ type: 'text', content: text.slice(last, upto) });
+        last = upto;
       }
     }
   }
@@ -208,6 +260,8 @@ function cleanMath(tex) {
   const isCleanBare = (/^\\\([\s\S]*\\\)$/.test(trimmed) && !/\\\(|\\\)/.test(bareInlineInner)) ||
     (/^\\\[[\s\S]*\\\]$/.test(trimmed) && !/\\\[|\\\]/.test(bareBlockInner));
   const isReversed = /^\\\]/.test(trimmed); // 方向错配 \]...\[（阶段 7 修复，不剥离）
+  const wasInlineBare = /^\\\([\s\S]*\\\)$/.test(trimmed); // 裸 \(...\) 包裹（剥离后需补 $）
+  const wasBlockBare = /^\\\[[\s\S]*\\\]$/.test(trimmed); // 裸 \[...\] 包裹（剥离后需补 $$）
   if (!isCleanBare && !isReversed && /\\\(|\\\)|\\\[|\\\]/.test(c)) {
     // 保护 $ 开头输入中末尾的 \）——错配 $...\)（阶段 7 补闭合），不剥离
     if (/^\$/.test(trimmed)) c = c.replace(/\\\)(?=\$|$)/g, '__RP__');
@@ -233,6 +287,10 @@ function cleanMath(tex) {
       c = c.slice(0, i) + c.slice(i + 1);
       closes--;
     }
+
+    // 剥离后补定界符：裸 \(...\) → $...$（原定界符已被剥离，需重新包裹才能渲染）
+    if (wasInlineBare && !/^\$/.test(c.trim())) c = `$${c.trim()}$`;
+    if (wasBlockBare && !/^\$\$/.test(c.trim())) c = `$$\n${c.trim()}\n$$`;
   }
   // 4. 命令内部嵌套分隔符
   c = c.replace(
@@ -332,6 +390,19 @@ function cleanMath(tex) {
   // 11b. 折叠命令替换产生的双空格：\ge + 原文空格 → \ge 单空格
   c = c.replace(/(\\[A-Za-z]+\s)\s+/g, '$1');
 
+  // 11c. Unicode 连字符（U+2011 等）→ 普通连字符（KaTeX 不识别特殊连字符）
+  c = c.replace(/‑/g, '-').replace(/–/g, '-');
+
+  // 11d. 公式区内裸中文 → \text{} 包裹（KaTeX 数学模式下不支持裸 CJK 字符）。
+  //      先保护已有 \text{...} 内容，避免二次包裹
+  const cjkHolders = [];
+  c = c.replace(/\\text\{[^}]*\}/g, (m) => {
+    cjkHolders.push(m);
+    return `__CJKH${cjkHolders.length - 1}__`;
+  });
+  c = c.replace(/[一-鿿]+/g, '\\text{$&}');
+  c = c.replace(/__CJKH(\d+)__/g, (_, i) => cjkHolders[i]);
+
   // 12. 收尾
   c = c.replace(/\$\$\n{3,}\$\$/g, '$$\n\n$$');
   c = c.replace(/[ \t]+$/gm, '');
@@ -370,8 +441,10 @@ function surgeryHtml(html) {
     const tex = extractTex(node);
     if (tex === null) return;
     const cleaned = cleanMath(tex);
+    // cleanMath 可能已补 $ 包裹（嵌套 \(...\) 场景）；去掉后统一按 display 判定重包
+    const inner = cleaned.replace(/^\$+/, '').replace(/\$+$/, '').trim();
     const display = isDisplayMath(node);
-    const replacement = display ? '$$\n' + cleaned + '\n$$' : '$' + cleaned + '$';
+    const replacement = display ? '$$\n' + inner + '\n$$' : '$' + inner + '$';
     node.replaceWith(doc.createTextNode(replacement));
   });
   return doc.body.innerHTML;

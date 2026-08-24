@@ -338,15 +338,16 @@ test('clean: 用户原文（连续 \\( \\( 双转义 + 花括号不平衡）→ 
 });
 
 // ---------- annotation 场景（HTML 手术提取的 tex，无 $ 包裹但带 MathJax 定界符） ----------
-test('cleanMath: annotation tex（\\(\\boldsymbol{\\(y=x\\)}\\) 无 $ 包裹）→ \\boldsymbol{y=x}', () => {
+// 注：cleanMath 对裸 \(...\) 剥离后补 $ 包裹（统一行为）；surgeryHtml 会去掉包裹后按 display 重包
+test('cleanMath: annotation tex（\\(\\boldsymbol{\\(y=x\\)}\\) 无 $ 包裹）→ $\\boldsymbol{y=x}$', () => {
   const input = ['\\(', '\\boldsymbol{', '\\(', 'y=x', '\\)', '}', '\\)'].join('');
-  assert.strictEqual(cleanMath(input), '\\boldsymbol{y=x}');
+  assert.strictEqual(cleanMath(input), '$\\boldsymbol{y=x}$');
 });
 
-test('cleanMath: annotation 裸包裹含内层定界符 → 剥离', () => {
+test('cleanMath: annotation 裸包裹含内层定界符 → 剥离并补包裹', () => {
   // \(\boldsymbol{\(\(\boldsymbol{\(y=x\)}\)}\)}\)（连续双转义，无 $ 包裹——HTML 手术真实场景）
   const input = ['\\(', '\\boldsymbol{', '\\(', '\\(', '\\boldsymbol{', '\\(', 'y=x', '\\)', '}', '\\)', '}', '\\)', '}', '\\)'].join('');
-  assert.strictEqual(cleanMath(input), '\\boldsymbol{y=x}');
+  assert.strictEqual(cleanMath(input), '$\\boldsymbol{y=x}$');
 });
 
 // ---------- 命令碎片重组（HTML 渲染交错） ----------
@@ -362,6 +363,31 @@ test('cleanMath: \\bol$垃圾$ymbol{ 变体（$ 插入）', () => {
 
 test('cleanMath: \\bold\\[...\\]symbol{ 变体（块级插入）', () => {
   assert.strictEqual(cleanMath('\\bold\\[z\\]symbol{x}'), '\\boldsymbol{x}');
+});
+
+// ---------- 嵌套 \(...\) 深度配对（用户真实场景：摸鱼向量.md） ----------
+test('clean: 嵌套 \\(S_{\\(S_{大}\\)}=...\\) 深度配对 → 无 \\( 残留且包裹', () => {
+  const input = '现在\\(S_{\\(S_{大}\\)}=\\{\\alpha_1,\\alpha_2,\\dots,\\alpha_{s-1},\\boldsymbol{\\alpha_s}\\}\\)向量组：';
+  const expected = '现在$S_{S_{\\text{大}}}=\\{\\alpha_1,\\alpha_2,\\dots,\\alpha_{s-1},\\boldsymbol{\\alpha_s}\\}$向量组：';
+  assert.strictEqual(clean(input), expected);
+});
+
+test('clean: 嵌套 \\(...\\) 在句中（用户第 14 行场景）', () => {
+  const input = '这个就是\\(S_{\\(S_{大}\\)}=\\{\\alpha_1,\\dots,\\boldsymbol{\\alpha_s}\\}\\)组的摸鱼向量';
+  const expected = '这个就是$S_{S_{\\text{大}}}=\\{\\alpha_1,\\dots,\\boldsymbol{\\alpha_s}\\}$组的摸鱼向量';
+  assert.strictEqual(clean(input), expected);
+});
+
+test('cleanMath: Unicode 连字符 U+2011 → 普通连字符', () => {
+  assert.strictEqual(cleanMath('$ss‑11$'), '$ss-11$');
+});
+
+test('cleanMath: 公式内裸中文 → \\text{} 包裹', () => {
+  assert.strictEqual(cleanMath('$S_{大}$'), '$S_{\\text{大}}$');
+});
+
+test('cleanMath: 已有 \\text{中文} 不二次包裹', () => {
+  assert.strictEqual(cleanMath('$\\text{中文} x$'), '$\\text{中文} x$');
 });
 
 // ---------- 汇总 ----------
